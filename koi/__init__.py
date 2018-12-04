@@ -194,3 +194,68 @@ def show_ha_profile(obj, x_input, y_output, y_std, r_max):
     return fig, [ax1, ax2], peaks_reliable, troughs_reliable
 
 
+def run_mcmc_for_radius(x, y, x_err, y_err, is_pivot=True):
+    import emcee
+    from scipy.stats import t
+    def model(theta, x):
+        return theta[0]*x+theta[1]
+
+    def lnLikelihood(theta, x, y, xerr, yerr):
+        a, b = theta
+        model_value = model(theta, x)
+        invy = 1/(yerr**2 + xerr**2) # +(model_value**2 * np.exp(2*lnf)))
+        invy = invy/(2*np.pi)
+        return -0.5*np.sum(invy*(model_value-y)**2)+0.5*np.sum(np.log(invy))
+
+    def lnPrior(theta):
+        a, b = theta
+        if -5<b<5:
+            return np.log(t.pdf(a, 1, 1)) + 0.0
+        return -np.inf
+
+    def lnProb(theta, x, y, xerr, yerr):
+        prior = lnPrior(theta)
+        if ~np.isfinite(prior):
+            return -np.inf
+        return prior + lnLikelihood(theta, x, y, xerr, yerr)
+
+    x_mask = ~np.isnan(x)
+    y_mask = ~np.isnan(y)
+    mask = np.logical_and(x_mask, y_mask)
+
+    x = x[mask]
+    y = y[mask]
+    x_err = x_err[mask]
+    y_err = y_err[mask]
+    x_pivot = np.median(x)
+    y_pivot = np.median(y)
+    print('x_pivot: ', x_pivot)
+    print('y_pivot: ', y_pivot)
+    if is_pivot:
+        x -= x_pivot
+        #y -= y_pivot
+
+
+    # Least Square Method
+    A = np.vstack((np.ones_like(x), x)).T
+    C = np.diag(y_err * y_err)
+    cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
+    b_ls, a_ls = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
+    print('a_ls: ', a_ls)
+    print('b_ls: ', b_ls)
+
+
+
+    ndim, nwalkers = 2, 100
+    pos = emcee.utils.sample_ball([a_ls, b_ls], [1e-3 for i in range(ndim)], size=nwalkers)
+    import emcee
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=(x, y, x_err, y_err))
+    step = 1000
+    pos, prob, state = sampler.run_mcmc(pos, step)
+
+    samples = sampler.chain[:,-500:,:].reshape((-1,ndim))
+    samples = sampler.flatchain
+    #sampler.reset()
+    print("Mean acceptance fraction: {0:.3f}"
+                .format(np.mean(sampler.acceptance_fraction)))
+    return x, y, x_err, y_err, x_pivot, y_pivot, samples
