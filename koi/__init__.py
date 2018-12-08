@@ -11,6 +11,99 @@ import koi
 plt.rc('font', size=20)
 plt.rc('text', usetex=True)
 
+def manga_SBP_single(ell_fix, redshift, pixel_scale, zeropoint, ax=None, offset=0.0, 
+    x_min=1.0, x_max=40.0, alpha=1, physical_unit=False, show_dots=False, 
+    vertical_line=False, vertical_pos=100, linecolor='firebrick', linestyle='-', label='SBP'):
+    """Display the 1-D profiles."""
+    if ax is None:
+        fig = plt.figure(figsize=(10, 10))
+        fig.subplots_adjust(left=0.0, right=1.0, 
+                            bottom=0.0, top=1.0,
+                            wspace=0.00, hspace=0.00)
+
+        ax1 = fig.add_axes([0.08, 0.07, 0.85, 0.88])
+        ax1.tick_params(direction='in')
+    else:
+        ax1 = ax
+        ax1.tick_params(direction='in')
+
+    # Calculate physical size at this redshift
+    import slug
+    phys_size = slug.phys_size(redshift,is_print=False)
+
+    # 1-D profile
+    if physical_unit is True:
+        x = ell_fix['sma']*pixel_scale*phys_size
+        y = -2.5*np.log10((ell_fix['intens'] + offset)/(pixel_scale)**2)+zeropoint
+        y_upper = -2.5*np.log10((ell_fix['intens'] + offset + ell_fix['int_err'])/(pixel_scale)**2)+zeropoint
+        y_lower = -2.5*np.log10((ell_fix['intens'] + offset - ell_fix['int_err'])/(pixel_scale)**2)+zeropoint
+        upper_yerr = y_lower-y
+        lower_yerr = y-y_upper
+        asymmetric_error = [lower_yerr, upper_yerr]
+        xlabel = r'$R/\mathrm{kpc}$'
+        ylabel = r'$\mu\,[\mathrm{mag/arcsec^2}]$'
+    else:
+        x = ell_fix['sma']*pixel_scale
+        y = -2.5*np.log10((ell_fix['intens'] + offset)/(pixel_scale)**2)+zeropoint
+        y_upper = -2.5*np.log10((ell_fix['intens'] + offset + ell_fix['int_err'])/(pixel_scale)**2)+zeropoint
+        y_lower = -2.5*np.log10((ell_fix['intens'] + offset - ell_fix['int_err'])/(pixel_scale)**2)+zeropoint
+        upper_yerr = y_lower-y
+        lower_yerr = y-y_upper
+        asymmetric_error = [lower_yerr, upper_yerr]
+        xlabel = r'$R/\mathrm{arcsec}$'
+        ylabel = r'$\mu\,[\mathrm{mag/arcsec^2}]$'
+    
+    # ax1.grid(linestyle='--', alpha=0.4, linewidth=2)
+    
+    if show_dots is True:
+        ax1.errorbar((x), 
+                 y,
+                 yerr=asymmetric_error,
+                 color='k', alpha=0.2, fmt='o', 
+                 capsize=4, capthick=1, elinewidth=1)
+    if label is not None:
+        ax1.plot(x, y, color=linecolor, linewidth=4, linestyle=linestyle,
+             label=r'$\mathrm{'+label+'}$', alpha=alpha)
+    else:
+        ax1.plot(x, y, color=linecolor, linewidth=4, linestyle=linestyle, alpha=alpha)
+    ax1.fill_between(x, y_upper, y_lower, color=linecolor, alpha=0.3*alpha)
+    ax1.axvline(x=vertical_pos, ymin=ax1.get_ylim()[0], ymax=ax1.get_ylim()[1], 
+                    color='gray', linestyle='--', linewidth=3)
+    for tick in ax1.xaxis.get_major_ticks():
+        tick.label.set_fontsize(25)
+    for tick in ax1.yaxis.get_major_ticks():
+        tick.label.set_fontsize(25)
+    ax1.set_xlim(x_min, x_max)
+    ax1.set_xlabel(xlabel, fontsize=30)
+    ax1.set_ylabel(ylabel, fontsize=30)
+    ax1.invert_yaxis()
+    if label is not None:
+        ax1.legend(fontsize=25, frameon=False, loc='upper right')
+    
+    if physical_unit is True:
+        ax4 = ax1.twiny() 
+        ax4.tick_params(direction='in')
+        lin_label = [1, 2, 5, 10, 30, 50, 100, 150, 300]
+        lin_pos = [i for i in lin_label]
+        ax4.set_xticks(lin_pos)
+        ax4.set_xlim(ax1.get_xlim())
+        ax4.set_xlabel(r'$\mathrm{kpc}$', fontsize=30)
+        ax4.xaxis.set_label_coords(1, 1.05)
+
+        ax4.set_xticklabels([r'$\mathrm{'+str(i)+'}$' for i in lin_label], fontsize=25)
+        for tick in ax4.xaxis.get_major_ticks():
+            tick.label.set_fontsize(25)
+        
+        
+    if vertical_line is True:
+        ax1.axvline(x=vertical_pos, ymin=0, ymax=1, 
+                    color='gray', linestyle='--', linewidth=3)
+        
+    if ax is None:
+        return fig
+    return ax1
+
+
 # Calculate physical size of a given redshift
 def phys_size(redshift, is_print=True, h=0.7, Omegam=0.3, Omegal=0.7):
     '''Calculate the corresponding physical size per arcsec of a given redshift.
