@@ -1,4 +1,6 @@
+# -*- coding: utf-8 -*-
 from __future__ import division
+from . import BPT
 import numpy as np
 import polarTransform
 import peakutils.peak
@@ -8,7 +10,7 @@ from astropy.io import fits
 from astropy.table import Table
 import koi
 
-plt.rc('font', size=20)
+#plt.rc('font', size=20)
 plt.rc('text', usetex=True)
 
 def manga_SBP_single(ell_fix, redshift, pixel_scale, zeropoint, ax=None, offset=0.0, 
@@ -168,7 +170,7 @@ def eat_pizza(init, theta, polarimage, xinput, r_max, dx, phys_scale, pa, ba):
     for i in range(init, init + theta):
         phi = np.deg2rad(i)
         x = (np.arange(0, r_max) * dx * phys_scale * (np.sqrt((np.cos(pa - phi))**2 + ((np.sin(pa - phi) / ba)**2))))
-        y = polarimage[:, i%360]
+        y = polarimage[i%360, :]
         f = interpolate.interp1d(x, y, kind='cubic', fill_value='extrapolate')
         if i==init:
             ystack = f(xinput)
@@ -251,7 +253,7 @@ def show_ha_profile(obj, x_input, y_output, y_std, r_max):
 
     trough_indices = peakutils.peak.indexes(1 - y_output, thres=0, min_dist=0)
     scatter_low = ax2.scatter(x_input[trough_indices[0]], y_output[trough_indices[0]], zorder=10,
-                    s=200, marker=(5,1,0), facecolors='lawngreen', edgecolors='blue')
+                    s=200, marker=(3, 1, 1), facecolors='lawngreen', edgecolors='blue')
     #trough_set = np.dstack((x_input[trough_indices], y_output[trough_indices]))
     troughs = x_input[trough_indices]
     troughs_reliable = troughs[0]
@@ -327,7 +329,7 @@ def run_mcmc_for_radius(x, y, x_err, y_err, is_pivot=True):
     print('y_pivot: ', y_pivot)
     if is_pivot:
         x -= x_pivot
-        #y -= y_pivot
+        y -= y_pivot
 
 
     # Least Square Method
@@ -355,10 +357,14 @@ def run_mcmc_for_radius(x, y, x_err, y_err, is_pivot=True):
     return x, y, x_err, y_err, x_pivot, y_pivot, samples
 
 
-def AGN_diagnosis(fits, this_ew, y1, x1, y2, x2, suptitle, size, show_fig=False, is_print=False):
-    ############### 判断星系的类型，从两个图BPT & VO87 中分别判断 ###############
-    RGmask = (this_ew <= 3)  # EW[Ha]小于3的是Retired Galaxy
-    nonRGmask = (this_ew > 3)
+def AGN_diagnosis(fits, this_ew, y1, x1, y2, x2, suptitle, size, 
+    consider_RG=True, show_fig=False, is_print=False):
+    if consider_RG:
+        RGmask = (this_ew <= 3)  # EW[Ha]<3 is Retired Galaxy
+        nonRGmask = (this_ew > 3)
+    else:
+        RGmask = np.zeros(len(this_ew))
+        nonRGmask = RGmask + 1
     tot_mask  = np.ones(fits['mangaid'].shape, dtype=bool)
     
     #SF1=np.logical_and(np.logical_and(y<0.61/(x-0.05)+1.30, y<0.61/(x-0.47)+1.19),SNmask)
@@ -409,11 +415,11 @@ def AGN_diagnosis(fits, this_ew, y1, x1, y2, x2, suptitle, size, show_fig=False,
 
     if show_fig:
         fig = plt.figure(figsize=(size[0], size[1]))
-        ############## 画图1 ###################
+        ############## fig1 ###################
         ax1 = plt.subplot2grid((1, 2), (0, 0))
         labels = 'SF', 'Composite', 'AGN', 'Retired'
         sizes = [sum(SF1), sum(Composite), sum(AGN1), sum(RGmask)]
-        explode = (0, 0, 0, 0)  #0.1表示将Hogs那一块凸显出来
+        explode = (0, 0, 0, 0)  
         colors = 'lawngreen', 'skyblue', 'salmon', 'gray'
         plt.pie(
             sizes,
@@ -425,11 +431,11 @@ def AGN_diagnosis(fits, this_ew, y1, x1, y2, x2, suptitle, size, show_fig=False,
             colors=colors)
         plt.title('BPT')
         
-        ############## 画图2 ###################
+        ############## fig2 ###################
         ax2 = plt.subplot2grid((1, 2), (0, 1))
         labels = 'SF', 'LINER', 'Seyfert', 'Retired'
         sizes = [sum(SF2), sum(LINER), sum(AGN2), sum(RGmask)]
-        explode = (0, 0, 0, 0)  #0.1表示将Hogs那一块凸显出来
+        explode = (0, 0, 0, 0)  
         colors = 'lawngreen', 'orange', 'r', 'gray'
         plt.pie(
             sizes,
@@ -469,7 +475,7 @@ def paper_BPT_and_RG(ring_fits, rthis_ew, rthis_x, rthis_y, rthis_x2, rthis_y2,
         all_fits, tthis_ew, tthis_y, tthis_x, tthis_y2, tthis_x2,
         'Total sample \n using 2.6kpc aperture and its EW', [9, 4], show_fig=False, is_print=False)
     fig = plt.figure(figsize=(26, 6.5))
-    plt.rcParams['font.size'] = 20.0
+    plt.rcParams['font.size'] = 25.0
     ax1 = plt.subplot2grid((1, 4), (0, 0))
     rRGmask = (rthis_ew <= 3)
     rnonRGmask = (rthis_ew > 3)
@@ -533,13 +539,13 @@ def paper_BPT_and_RG(ring_fits, rthis_ew, rthis_x, rthis_y, rthis_x2, rthis_y2,
         0.05 * (xmax - xmin) + xmin,
         ymin + (ymax - ymin) * 0.90,
         '(a)',
-        fontsize=20)
+        fontsize=25)
     plt.ylabel(r'$\log$([O III]/H$\beta$)')
     plt.xlabel(r'$\log$([N II]/H$\alpha$)')
     ax1.yaxis.set_ticks_position('both')
     ax1.tick_params(direction='in')
     #plt.title('RG='+ str(sum(RGmask))+' and Non-RG='+str(sum(nonRGmask)))
-    leg = plt.legend(markerscale=1.2, fontsize=13, framealpha=0.5, edgecolor='k')
+    leg = plt.legend(markerscale=1.4, fontsize=20, framealpha=0.5, edgecolor='k')
     for l in leg.legendHandles:
         l.set_alpha(0.8)
     plt.grid('off')
@@ -609,7 +615,7 @@ def paper_BPT_and_RG(ring_fits, rthis_ew, rthis_x, rthis_y, rthis_x2, rthis_y2,
         0.05 * (xmax - xmin) + xmin,
         ymin + (ymax - ymin) * 0.90,
         '(b)',
-        fontsize=20)
+        fontsize=25)
     #plt.ylabel(r'$\log$ OIII/H$\beta$')
     plt.xlabel(r'$\log$([S II]/H$\alpha$)')
     ax2.yaxis.set_ticks_position('both')
@@ -681,7 +687,7 @@ def paper_BPT_and_RG(ring_fits, rthis_ew, rthis_x, rthis_y, rthis_x2, rthis_y2,
         0.05 * (xmax - xmin) + xmin,
         ymin + (ymax - ymin) * 0.90,
         '(c)',
-        fontsize=20)
+        fontsize=25)
     plt.xlabel(r'$\log$([N II]/H$\alpha$)')
     ax3.yaxis.set_ticks_position('both')
     ax3.tick_params(direction='in')
@@ -752,7 +758,7 @@ def paper_BPT_and_RG(ring_fits, rthis_ew, rthis_x, rthis_y, rthis_x2, rthis_y2,
         0.05 * (xmax - xmin) + xmin,
         ymin + (ymax - ymin) * 0.90,
         '(d)',
-        fontsize=20)
+        fontsize=25)
     plt.xlabel(r'$\log$([S II]/H$\alpha$)')
     ax4.yaxis.set_ticks_position('both')
     ax4.tick_params(direction='in')
@@ -770,7 +776,7 @@ def paper_BPT_and_RG(ring_fits, rthis_ew, rthis_x, rthis_y, rthis_x2, rthis_y2,
     ax4.set_yticklabels([])
     plt.subplots_adjust(wspace=0)
     if savefile is not None:
-        plt.savefig(savefile, dpi=400, bbox_inches='tight')
+        plt.savefig(savefile, dpi=200, bbox_inches='tight')
     plt.show()
 
 #####################################################################
@@ -841,8 +847,9 @@ def plot_sample_distribution(
     
 
     if scatter:
-        ax1.scatter(x_arr, y_arr, c=z_arr, cmap='Spectral', alpha=0.3, s=s_size,
+        sc = ax1.scatter(x_arr, y_arr, c=z_arr, cmap='Spectral', alpha=0.3, s=s_size,
                     label='__no_label__', zorder=1)
+    ax1.colorbar(sc, ax=ax1, orientation='horizontal')
     ax1.set_xlabel(xlabel, size=25)
     ax1.set_ylabel(ylabel, size=25)
     ax1.set_yticks([-3, -2, -1, 0, 1])
